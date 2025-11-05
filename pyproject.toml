@@ -9,7 +9,7 @@ dependencies = [
 ]
 
 [project.scripts]
-push = "androidsync:main"
+main = "androidsync:main"
 
 [build-system]
 requires = [ "setuptools" ]

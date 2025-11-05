@@ -1,53 +1,63 @@
-import subprocess
 from argparse import ArgumentParser
 from pathlib import Path
+from subprocess import run
 
 from tqdm import tqdm
 
-PHNBASE = Path("storage/emulated/0/Documents/Transfer")
-FROMDIR = Path("SyncFolder")
+
+def run_cmd(cmd: list[str]) -> tuple[int, str, str, str]:
+    sp = run(cmd, capture_output=True)
+    return sp.returncode, sp.args, sp.stdout.decode("utf-8"), sp.stderr.decode("utf-8")
 
 
-def run_cmd(cmd: list[str]) -> None:
-    sp = subprocess.run(cmd, capture_output=True)
-    if sp.returncode != 0:
+def ensure_cmd(stuff: tuple[int, str, str, str]) -> None:
+    ret, args, out, err = stuff
+    if ret != 0:
         raise RuntimeError(
-            f"\n\tcommand: {sp.args}"
-            f"\n\tstdout:  {sp.stdout.decode("utf-8")}"
-            f"\n\tstderr:  {sp.stderr.decode("utf-8")}"
+            f"\n\tcommand: {args}" f"\n\tstdout:  {out}" f"\n\tstderr:  {err}"
         )
-    return
 
 
-def nopar(dir) -> str:
-    return str(dir).rpartition("../")[-1]
+def push_file(file: Path, fromparent: Path, phnbase: Path) -> None:
+    full_par = (
+        file.parent.relative_to(fromparent)
+        if file.parent.is_relative_to(fromparent)
+        else file.parent
+    )
+    phn_parent = phnbase / full_par
+    if phn_parent == file:
+        raise RuntimeError(phn_parent)
+    ensure_cmd(run_cmd(["adb", "shell", "mkdir", "-p", '"' + str(phn_parent) + '"']))
+    ensure_cmd(run_cmd(["adb", "push", str(file), str(phn_parent)]))
 
 
 def main() -> None:
-    global FROMDIR, PHNBASE
     parser = ArgumentParser(prog="androidsync")
-    parser.add_argument("fromdir", default=FROMDIR)
-    parser.add_argument("--phnbase", default=PHNBASE)
+    parser.add_argument("action", default="push")
+    parser.add_argument("--fromdir", default="SyncFolder")
+    parser.add_argument("--phnbase", default="storage/emulated/0")
     args = parser.parse_args()
-    FROMDIR = Path(args.fromdir)
-    PHNBASE = Path(args.phnbase)
-    print(f"Exploring: {FROMDIR}")
-    raw_paths: list[Path] = [x for x in tqdm(FROMDIR.glob("**/*"))]
-    dirs: list[Path] = [x for x in raw_paths if x.is_dir()]
-    files: list[Path] = [x for x in raw_paths if x.is_file()]
-    print("Making Directories")
-    for dir in tqdm(dirs):
-        phn_dir: str = '"' + str(PHNBASE / nopar(dir)) + '"'
-        run_cmd(["adb", "shell", "mkdir", "-p", phn_dir])
-    print("Transferring Files")
-    for file in tqdm(files):
-        phn_parent: str = (
-            str(PHNBASE / nopar(Path(file).parent))
-            if Path(file).parent != PHNBASE
-            else str(PHNBASE)
-        )
-        run_cmd(["adb", "push", str(file), phn_parent])
-    return
+
+    fromdir = Path(args.fromdir)
+    phnbase = Path(args.phnbase)
+    fromparent = Path(fromdir.parent)
+    action = args.action.lower()
+    if action == "push":
+        files = [
+            x
+            for x in Path(fromdir).glob("**/*")
+            if x.is_file() and ".thumbnail" not in str(x)
+        ]
+        print("Pushing Files")
+        [push_file(file, fromparent, phnbase) for file in tqdm(files)]  # type: ignore[func-returns-value]
+    elif action == "pull":
+        print("Pulling Files")
+        ret, _, out, _ = run_cmd(["adb", "shell", "ls", str(phnbase)])
+        if ret != 0:
+            raise (RuntimeError)
+        run_cmd(["adb", "pull", f"{phnbase}", str(fromdir)]),
+    else:
+        print(f"Unknown action: {action}")
 
 
 if __name__ == "__main__":
