@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
 import subprocess
+from argparse import ArgumentParser
 from pathlib import Path
 
 from tqdm import tqdm
 
 PHNBASE = Path("storage/emulated/0/Documents/Transfer")
-FROMDIR = Path("Alice-no-Takarabako")
+FROMDIR = Path("SyncFolder")
 
 
 def run_cmd(cmd: list[str]) -> None:
@@ -19,19 +19,30 @@ def run_cmd(cmd: list[str]) -> None:
     return
 
 
+def nopar(dir) -> str:
+    return str(dir).rpartition("../")[-1]
+
+
 def main() -> None:
+    global FROMDIR, PHNBASE
+    parser = ArgumentParser(prog="androidsync")
+    parser.add_argument("fromdir", default=FROMDIR)
+    parser.add_argument("--phnbase", default=PHNBASE)
+    args = parser.parse_args()
+    FROMDIR = Path(args.fromdir)
+    PHNBASE = Path(args.phnbase)
     print(f"Exploring: {FROMDIR}")
     raw_paths: list[Path] = [x for x in tqdm(FROMDIR.glob("**/*"))]
     dirs: list[Path] = [x for x in raw_paths if x.is_dir()]
     files: list[Path] = [x for x in raw_paths if x.is_file()]
     print("Making Directories")
     for dir in tqdm(dirs):
-        phn_dir: str = '"' + str(PHNBASE / dir) + '"'
+        phn_dir: str = '"' + str(PHNBASE / nopar(dir)) + '"'
         run_cmd(["adb", "shell", "mkdir", "-p", phn_dir])
     print("Transferring Files")
     for file in tqdm(files):
         phn_parent: str = (
-            str(PHNBASE / Path(file).parent)
+            str(PHNBASE / nopar(Path(file).parent))
             if Path(file).parent != PHNBASE
             else str(PHNBASE)
         )
