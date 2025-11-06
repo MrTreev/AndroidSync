@@ -32,10 +32,25 @@ def push_file(file: Path, fromparent: Path, phnbase: Path) -> None:
 
 
 def main() -> None:
-    parser = ArgumentParser(prog="androidsync")
-    parser.add_argument("action", default="push")
-    parser.add_argument("--fromdir", default="SyncFolder")
-    parser.add_argument("--phnbase", default="storage/emulated/0")
+    parser = ArgumentParser(
+        prog="androidsync",
+        description="Android phone syncronisation utility",
+    )
+    parser.add_argument(
+        "action",
+        default="push",
+        choices=["push", "pull"],
+    )
+    parser.add_argument(
+        "--fromdir",
+        default="SyncFolder",
+        help="base directory of backups",
+    )
+    parser.add_argument(
+        "--phnbase",
+        default="storage/emulated/0",
+        help="base directory on the phone",
+    )
     args = parser.parse_args()
 
     fromdir = Path(args.fromdir)
